@@ -344,6 +344,21 @@
 </head>
 <body>
 
+  <script>
+  (function() {
+    const PASSWORD = "your-password-here";
+    const SESSION_KEY = "pleiades_auth";
+    if (sessionStorage.getItem(SESSION_KEY) !== "true") {
+      const input = prompt("Enter password to access this site:");
+      if (input !== PASSWORD) {
+        document.body.innerHTML = "<p style='font-family:sans-serif;padding:2rem'>Incorrect password.</p>";
+        return;
+      }
+      sessionStorage.setItem(SESSION_KEY, "true");
+    }
+  })();
+</script>
+
 <!-- NAV -->
 <nav>
   <a href="index.html" class="nav-logo">

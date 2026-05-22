@@ -1,0 +1,30 @@
+# Environment & secrets
+.env
+
+# Data (generated artifacts — rebuild with cli/ingest.py)
+data/*.db
+
+# Model (generated — rebuild with cli/train.py)
+model/*.pkl
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+venv/
+.venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+tagging_log.txt
+
+# IDE
+.vscode/
+.idea/

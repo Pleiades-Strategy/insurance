@@ -2,9 +2,11 @@ name: Sync Airtable → data.json
 
 on:
   schedule:
-    # Runs every day at 6:00 AM UTC (adjust to your preference)
     - cron: '0 6 * * *'
-  workflow_dispatch:   # Also allows manual trigger from the Actions tab
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   sync:
@@ -20,8 +22,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: |
-          pip install requests python-dotenv
+        run: pip install requests python-dotenv
 
       - name: Write .env file
         run: |

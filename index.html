@@ -22,7 +22,6 @@
 <style>
 /* ─────────────────────────────────────────────
    PLEIADES STRATEGY BRAND TOKENS
-   Text Body & Accents palette
 ───────────────────────────────────────────── */
 :root {
   --brand:       #00005B;   /* brand navy */
@@ -346,7 +345,7 @@ tr.clickable:hover td { background: rgba(99,96,240,.05); cursor: pointer; }
         <th data-col="status">Status <span class="sa"></span></th>
         <th data-col="keyword_tags">Category</th>
         <th data-col="last_action_date">Last Action <span class="sa"></span></th>
-        <th data-col="sponsors">Sponsors</th>
+        <th>Sponsors</th>
         <th>Links</th>
       </tr></thead>
       <tbody id="bills-tbody"></tbody>
@@ -500,23 +499,39 @@ const STATUS_COLORS = {
 };
 const statusColor = s => STATUS_COLORS[s] || "#D7D7D6";
 
-// Degrees palette — for tilemap (magnitude)
-// Interpolates from #FFC0C0 (light pink) to #540000 (dark maroon)
+// Degrees palette — tilemap with 5-stop benchmarks
+// Stops: #FFC0C0 → #FF6B6B → #CD0000 → #8E0000 → #540000
+const DEGREES_STOPS = [
+  [255, 192, 192],  // #FFC0C0
+  [255, 107, 107],  // #FF6B6B
+  [205,   0,   0],  // #CD0000
+  [142,   0,   0],  // #8E0000
+  [ 84,   0,   0],  // #540000
+];
+function lerpRgb(stops, t) {
+  // t in [0,1]; maps to 4 equal segments across 5 stops
+  const seg  = Math.min(Math.floor(t * (stops.length - 1)), stops.length - 2);
+  const local = t * (stops.length - 1) - seg;
+  const a = stops[seg], b = stops[seg + 1];
+  return [
+    Math.round(a[0] + (b[0] - a[0]) * local),
+    Math.round(a[1] + (b[1] - a[1]) * local),
+    Math.round(a[2] + (b[2] - a[2]) * local),
+  ];
+}
 function tileColor(count, maxCount) {
   if (!count) return "#D7D7D6";                        // neutral gray for zero
   const t = Math.pow(Math.min(count / maxCount, 1), 0.55);
-  const r = Math.round(255 + (84  - 255) * t);
-  const g = Math.round(192 + (0   - 192) * t);
-  const b = Math.round(192 + (0   - 192) * t);
+  const [r, g, b] = lerpRgb(DEGREES_STOPS, t);
   return `rgb(${r},${g},${b})`;
 }
 function tileTextColor(count, maxCount) {
   if (!count) return "#666666";
   const t = Math.pow(Math.min(count / maxCount, 1), 0.55);
-  return t > 0.38 ? "#ffffff" : "#540000";
+  return t > 0.35 ? "#ffffff" : "#540000";
 }
 
-// US tile map positions [code, col(1-indexed), row(1-indexed)]
+// US tile map positions [code, col, row] (1-indexed)
 const TILE_MAP_DEF = [
   ["WA",1,1],["MT",3,1],["ND",4,1],["MN",5,1],["VT",10,1],["ME",11,1],
   ["OR",1,2],["ID",2,2],["WY",3,2],["SD",4,2],["IA",5,2],["WI",6,2],["MI",7,2],["NY",9,2],["NH",10,2],["MA",11,2],
@@ -545,7 +560,6 @@ function filterByYear(items, yr, field="year") {
     return Array.isArray(v) ? v.map(String).includes(yr) : String(v) === yr;
   });
 }
-
 function badgeHtml(status) {
   const s = (status||"").toLowerCase();
   let cls = "badge-other";
@@ -557,6 +571,19 @@ function badgeHtml(status) {
 function partyClass(p) {
   if (!p) return "";
   return p.startsWith("D") ? "party-d" : p.startsWith("R") ? "party-r" : "party-i";
+}
+
+// Build a lookup: bill_id → array of sponsor names (from legislators' linked_bill_ids)
+// Called once after data loads; used by renderBillRow so we don't scan all legislators per row.
+let BILL_SPONSORS = {};
+function buildSponsorIndex() {
+  BILL_SPONSORS = {};
+  (DATA.legislators||[]).forEach(l => {
+    (l.linked_bill_ids||[]).forEach(id => {
+      if (!BILL_SPONSORS[id]) BILL_SPONSORS[id] = [];
+      BILL_SPONSORS[id].push(l.legislator_name);
+    });
+  });
 }
 
 // ── Data load ──────────────────────────────────
@@ -576,6 +603,7 @@ async function loadData() {
   document.getElementById("header-meta").innerHTML =
     `${DATA.summary.total} bills · ${DATA.summary.states} states<br>`+
     `<span style="font-size:10px">Updated ${ts}</span>`;
+  buildSponsorIndex();
   populateDropdowns();
   renderDashboard();
   showView("dashboard");
@@ -771,7 +799,12 @@ function renderBills() {
   if(ctEl&&billsCatFilter)   ctEl.value=billsCatFilter;
 
   let rows=filterByYear(DATA.bills||[],activeYears.bills);
-  if(search)   rows=rows.filter(b=>(b.title||"").toLowerCase().includes(search)||(b.bill_number||"").toLowerCase().includes(search)||(b.sponsors||"").toLowerCase().includes(search));
+  if(search)   rows=rows.filter(b=>{
+    const sponsors=(BILL_SPONSORS[b.bill_id]||[]).join(" ").toLowerCase();
+    return (b.title||"").toLowerCase().includes(search)
+        || (b.bill_number||"").toLowerCase().includes(search)
+        || sponsors.includes(search);
+  });
   if(stFilter) rows=rows.filter(b=>b.state===stFilter);
   if(stStatus) rows=rows.filter(b=>b.status===stStatus);
   if(stCat)    rows=rows.filter(b=>(b.keyword_tags||[]).includes(stCat));
@@ -794,6 +827,11 @@ function renderBillRow(b) {
   const links=[];
   if(b.bill_url)      links.push(`<a href="${escHtml(b.bill_url)}" target="_blank" onclick="event.stopPropagation()">BT50</a>`);
   if(b.document_link) links.push(`<a href="${escHtml(b.document_link)}" target="_blank" onclick="event.stopPropagation()">Doc</a>`);
+  // Sponsors from linked legislators index
+  const sponsorNames = (BILL_SPONSORS[b.bill_id]||[]);
+  const sponsorHtml  = sponsorNames.length
+    ? `<span style="font-size:11px;color:var(--text-mid)">${escHtml(sponsorNames.join(", "))}</span>`
+    : `<span style="font-size:11px;color:#ccc">—</span>`;
   return `<tr class="clickable" onclick="previousView='bills';showBillDetail('${escHtml(b.bill_id)}')">
     <td><strong style="color:var(--brand)">${escHtml(b.bill_number)}</strong><br>
         <span style="font-size:11px;color:var(--text-mid)">${escHtml(b.title)}</span></td>
@@ -801,7 +839,7 @@ function renderBillRow(b) {
     <td>${badgeHtml(b.status)}</td>
     <td>${cats}</td>
     <td style="white-space:nowrap;color:var(--text-mid)">${fmtDate(b.last_action_date)}</td>
-    <td style="font-size:11px;color:var(--text-mid)">${escHtml(b.sponsors)}</td>
+    <td>${sponsorHtml}</td>
     <td style="white-space:nowrap">${links.join(" · ")}</td>
   </tr>`;
 }
@@ -938,7 +976,7 @@ function goToCategoryBills(cat) {
   document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.view==="bills"));
 }
 
-// ── BY GEOGRAPHY (Degrees palette tilemap) ─────
+// ── BY GEOGRAPHY ───────────────────────────────
 function renderGeography() {
   const bills=filterByYear(DATA.bills||[],activeYears.geography);
   const stateMap={};
